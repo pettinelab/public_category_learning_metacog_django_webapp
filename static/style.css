@@ -1,0 +1,95 @@
+body {
+    background: white; /* white, black*/
+    color: black; /* black, whitesmoke*/
+    text-align: center;
+    margin-top: 100px;
+    margin-bottom: 100px;
+    margin-right: 150px;
+    margin-left: 80px;
+    line-height: normal;
+}
+
+div {
+    color: black; /* black, whitesmoke*/
+    font-size: inherit;
+    padding-bottom: 7px;
+}
+
+ul {
+  list-style-type: none;
+}
+
+h2 {
+    color: black; /* black, whitesmoke*/
+    font-size: large;
+}
+
+img {
+    width: 250px;
+}
+
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.center_captcha {
+  margin: auto;
+  width: 50%;
+  padding: 10px;
+}
+
+a:link {
+    color: blue; /* blue, limegreen*/
+    font-size: x-large;
+}
+
+a:visited {
+    color: darkred;
+    font-size: x-large;
+}
+
+.custom-radio-list {
+    list-style-type: none;
+    padding: 0;
+    font-size: medium;
+    margin: 0;
+}
+
+/* .question input[type="radio"] {
+    display: none;
+  }
+  
+.question label {
+    font-size: 16px;
+    font-weight: normal;
+    margin-left: 10px;
+}
+  
+.question {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+  
+.question:hover {
+    background-color: #f4f4f4;
+} */
+
+#radio-questions {
+    font-size: 16px;
+    margin-right: 10px; /* Adjust this value as needed */
+}
+
+.form_style {
+    background: white; /* white, black*/
+    color: black; /* black, whitesmoke*/
+    text-align: left;
+    font-size: medium;
+    margin-top: 20px;
+    margin-bottom: 0px;
+    margin-right: 0px;
+    margin-left: 50px;
+    line-height: normal;
+}

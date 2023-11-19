@@ -1,0 +1,46 @@
+{% extends "drone_recon/layout.html" %}
+
+{% block body %}
+    {{ conditional_questions|json_script:"conditional_questions" }}
+    
+    <h1>Welcome!</h1>
+
+    <div>
+        <p>
+            <h3>{{ welcome_message }}</h3>
+        </p>
+    </div>
+
+    <form action="{% url 'drone_recon:welcome' %}" method="post" class="pure-form pure-form-aligned">
+        {% csrf_token %}
+        
+        {{ form_demographics.as_p }}
+        {{ timezone_form }}
+        {{ form_sleep.as_p }}
+
+        <h3>{{ form_header_text }}</h3>
+        <div id="radio-questions">
+            {{ form_substances.as_p}}
+        </div>
+
+        {% if recaptcha.bool %}
+            <div class="center_captcha">
+            <script src={{ recaptcha.src }}></script>
+            <div class="g-recaptcha" data-sitekey={{ recaptcha.site_key }}></div>
+            </div>
+        {% endif %}
+
+        {% load static %}
+        <script src="{% static 'js/conditionalforms.js' %}"></script>
+
+        <input type="submit" name="Let's Go!">
+    </form>
+
+
+<script type="text/javascript">
+    const timezone_id = "{{ timezone_form.timezone.auto_id }}";
+    let timezone = new Date().toString().match(/([A-Z]+[\+-][0-9]+.*)/)[1];
+    document.getElementById(timezone_id).value = timezone;
+</script>
+
+{% endblock %}

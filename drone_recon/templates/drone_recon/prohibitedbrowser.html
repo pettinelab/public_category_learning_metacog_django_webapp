@@ -1,0 +1,17 @@
+{% extends "drone_recon/layout.html" %}
+
+{% block body %}
+    <body>
+    <div label="exit_message">
+        Unfortunately, your using a web browser that does not enable functionality needed for this game (like requiring full screen). At present, the prohibited list includes:
+        <br>
+        <br>
+        {% for item in prohibited_browsers %}
+            <li>{{ item }}</li>
+        {% endfor %}
+        <br>
+        <br>
+        You can try the task again using a different browser. However, please make sure to open it from the full URL you were provided. We pay you using parameters from the URL. Thanks!
+    </div>
+    </body>
+{% endblock %}

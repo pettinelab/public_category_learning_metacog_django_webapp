@@ -1,0 +1,11 @@
+Django==4.1.7
+numpy==1.19.5
+sqlparse==0.4.1
+whitenoise==5.2.0
+pillow==8.0.0
+django-extensions==3.2.1
+user-agents
+psycopg2-binary
+python-dotenv
+django-storages[azure]
+opencensus-ext-azure

@@ -1,0 +1,38 @@
+{% extends "drone_recon/layout.html" %}
+
+{% block content %}
+{% block body %}
+    {{ conditional_questions|json_script:"conditional_questions" }}
+  <form action="{% url 'drone_recon:questionnaires' %}" method="post" class="pure-form pure-form-aligned form_style">
+    {% csrf_token %}
+
+      <h3> Please read through the questions carefully</h3>
+        <em> ***questions referring to casual interaction with acquaintances, rather than special
+        relationships such as with close friends and family members.</em>
+        <br>
+
+    <div id="radio-questions">
+      {% for formset_ in formsets_combined.formsets %}
+          {{ formset_.management_form }}
+        {% for form in formset_ %}
+          {{ form.as_p }}
+        {% endfor %}
+      {% endfor %}
+
+      {{ form_att_check.as_p }}
+    </div>
+
+    <h3>Have you ever been formally diagnosed by a physician with the following conditions?</h3>
+    <div id="radio-questions">
+      {{ form_mh.as_p | safe}}
+    </div>
+
+    {% load static %}
+    <script src="{% static 'js/conditionalforms.js' %}"></script>
+
+    <button type="submit">Submit</button>
+  </form>
+
+{% endblock %}
+
+{% endblock %}

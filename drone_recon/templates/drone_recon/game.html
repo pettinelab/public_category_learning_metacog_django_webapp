@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Drone Recon</title>
+    {% load static %}
+    <script src="{% static 'js/jspsych/jspsych.js' %}"></script>
+    <script src="{% static 'js/jspsych/plugin-html-keyboard-response.js' %}"></script>
+    <script src="{% static 'js/jspsych/plugin-html-button-response.js' %}"></script>
+    <script src="{% static 'js/jspsych/plugin-image-keyboard-response.js' %}"></script>
+    <script src="{% static 'js/jspsych/plugin-preload.js' %}"></script>
+    <script src="{% static 'js/jspsych/plugin-survey-text.js' %}"></script>
+    <script src="{% static 'js/jspsych/plugin-survey-multi-choice.js' %}"></script>
+    <script src="{% static 'js/jspsych/plugin-fullscreen.js' %}"></script>
+    <script src="http://d3js.org/d3.v6.js"></script>
+    <script src="{% static 'js/functions.js' %}"></script>
+    <script src="{% static 'js/jquery.min.js' %}"></script>
+    <link href="{% static 'js/jspsych/jspsych.css' %}" rel="stylesheet" type="text/css" />
+    <style>
+      #jspsych-image-keyboard-response-stimulus {
+        max-width: 55%;
+      }
+      .jspsych-survey-text-question input{
+        white-space: pre-wrap;
+        overflow-wrap: break-word; 
+        word-wrap: break-word;
+        width: auto;
+        height: 150px;
+    }
+
+    </style>
+  </head>
+  <body></body>
+  <script>
+
+    /* Save function */
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+          const cookies = document.cookie.split(';');
+          for (let i = 0; i < cookies.length; i++) {
+              const cookie = cookies[i].trim();
+              // Does this cookie string begin with the name we want?
+              if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                  cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                  break;
+              }
+          }
+      }
+      return cookieValue;
+    }
+    var posturl = "{% url 'drone_recon:game' %}";
+    var goodbyeurl = "{% url 'drone_recon:token' %}";
+    var require_fullscreen = {{ require_fullscreen|yesno:"true,false" }}
+    const csrftoken = getCookie('csrftoken');
+
+    function saveData(posturl, goodbyeurl, data, csrftoken){
+      var jsondata = new FormData();
+      jsondata.append("classification_trials",JSON.stringify(data.filter({task: 'classification'})));
+      jsondata.append("confidence_trials",JSON.stringify(data.filter({task: 'confidence'})));
+      jsondata.append("strategy_free",JSON.stringify(data.filter({task: 'strategy_free'})));
+      jsondata.append("strategy_radio",JSON.stringify(data.filter({task: 'strategy_radio'})));
+      $.ajax({
+        type: "POST",
+        url: posturl,
+        contentType: false,
+        cache: false,
+        processData: false,
+        headers: { "X-CSRFToken": csrftoken },
+        dataType: "json",
+        // data: {'task_data': JSON.stringify({filedata: data})},
+        data: jsondata,
+        success: function (res, status) {},
+        error: function (res) {
+          alert(res.status);
+        }
+      })
+      .then(response => {
+        location.href = goodbyeurl;
+      });
+    }
+
+    var fullscreen = {
+      type: jsPsychFullscreen,
+      fullscreen_mode: true,
+      on_start: function() {
+        should_be_in_fullscreen = true; // once this trial starts, the participant should be in fullscreen
+      }
+    };
+
+    var fullscreen_exit = {
+      type: jsPsychFullscreen,
+      fullscreen_mode: false,
+      on_start: function() {
+        should_be_in_fullscreen = false; // once this trial starts, the participant is no longer required to stay in fullscreen
+      }
+    };
+
+    /* initialize jsPsych and setup the posting of data */
+    var jsPsych = initJsPsych({
+      on_interaction_data_update: function(data){
+        if(require_fullscreen) {
+          if(data.event == 'fullscreenexit' && should_be_in_fullscreen){
+            console.log('exited fullscreen');
+            // hide the contents of the current trial
+            jsPsych.getDisplayElement().style.visibility = 'hidden';
+            // add a div that contains a message and button to re-enter fullscreen
+            jsPsych.getDisplayElement().insertAdjacentHTML('beforebegin',
+            '<div id="message-div" style="margin: auto; width: 100%; text-align: center;">'+
+            '<p>Please remain in fullscreen mode during the task.</p>'+
+            '<p>When you click the button below, you will enter fullscreen mode.</p>'+
+            '<button id="jspsych-fullscreen-btn" class="jspsych-btn">Continue</button></div>');
+            // call the request fullscreen function when the button is clicked
+            document.querySelector('#jspsych-fullscreen-btn').addEventListener('click', function() {
+              var element = document.documentElement;
+              if (element.requestFullscreen) {
+                element.requestFullscreen();
+              } else if (element.mozRequestFullScreen) {
+                element.mozRequestFullScreen();
+              } else if (element.webkitRequestFullscreen) {
+                element.webkitRequestFullscreen();
+              } else if (element.msRequestFullscreen) {
+                element.msRequestFullscreen();
+              }
+            });
+          }
+          if(data.event == 'fullscreenenter'){
+            console.log('entered fullscreen');
+            // when entering fullscreen, check to see if the participant is re-entering fullscreen, 
+            // i.e. the 'please enter fullscreen' message is on the page
+            var msg_div = document.querySelector('#message-div');
+            if (msg_div !== null) {
+              // remove the message
+              msg_div.remove(); 
+              // show the contents of the current trial again
+              jsPsych.getDisplayElement().style.visibility = 'visible';
+            }
+          }
+        } 
+      },
+      on_finish: function(){
+        //saveData(updateurl, jsPsych.data.get().csv(), csrftoken); 
+        saveData(posturl, goodbyeurl, jsPsych.data.get(), csrftoken);
+    }
+    });
+
+
+    /* create timeline */
+    var timeline = [];
+
+    /* task parameters */
+    var feedback_trial_duration = 10000
+    var confidence_labels = {{confidence_labels|safe}};
+    var confidence_keys = {{confidence_keys|safe}};
+    var drone_types = {{drone_types|safe}};
+    var drone_types_keys = {{drone_types_keys|safe}};
+    var tutorial_types = {{tutorial_types|safe}};
+    var tutorial_types_keys = {{tutorial_types_keys|safe}};
+    var initial_test = {{ initial_test|yesno:"true,false" }}
+
+    /* Stimulus arrays (with rules, etc.) */
+    var tutorial_train_stimuli = {{tutorial_train_stimuli|safe}};
+    var tutorial_test_stimuli = {{tutorial_test_stimuli|safe}};
+    var train_stimuli = {{train_stimuli|safe}};
+    var test_stimuli = {{test_stimuli|safe}};
+    var stim_feedback_urls = {{stim_feedback_urls|safe}};
+    var stim_schematic_urls = {{stim_schematic_urls|safe}};
+    var schematic_drone_tutorial_url = stim_schematic_urls.find(element => element.includes('training'));
+    var schematic_drone_task_url = stim_schematic_urls.find(element => element.includes('task'));
+    var reward_url = stim_feedback_urls.find(element => element.includes('green'));
+    var noreward_url = stim_feedback_urls.find(element => element.includes('red'));
+
+    /* User and session variables */
+    const urlParams = new URLSearchParams(window.location.search);
+    var session_id = urlParams.get("SESSION_ID"); 
+    var study_id = urlParams.get("STUDY_ID");
+    var user_id = urlParams.get("PROLIFIC_PID");
+
+    /* Tracking variables */
+    var trial_index_aligned = 0;
+
+    /* Define the welcome message */ 
+    if (initial_test) {
+      var welcome_message = "Welcome to Drone Recon! Press any key to begin.";
+      var introduction_message = `
+        <h1>Welcome Agent</h1>
+
+        <p>You are an analyst with the intelligence agency. Your mission is to provide assessments of unknown
+          drones. Specifically, the agency needs to know if a drones is ${drone_types[0].toLocaleLowerCase()}, 
+          or ${drone_types[1].toLocaleLowerCase()}. Additionally, the agency needs to know how confident you 
+          are in your assessment. Consequential decisions will be made based both on your categorization of the 
+          drone and how confident you are in your judgement.</p>
+
+          <p>The final evaluation you receive will be an average of how well you did categorizing the drones, 
+          and how accurately you judged your own categorization. For example, if you are 100% correct, and your 
+          judgement calibration score is 100, your final evaluation will be 100. If you are 50 correct, and your
+          judgement calibration score is 20, your final evaluation will be 35. Thus, to perform well, try as hard 
+          as you can both to categorize the drone correctly, and honestly judge your categorization.</p>
+
+        <p>Before we get into the briefing and field work, we need to ensure that you understand 
+          the basics of what will be required.</p>
+
+        <p>Press any key to continue.</p>
+        `;
+      var instructions_briefing_1_text = `
+        <h1>Mission Briefing</h1>
+        <h2>Drone Schematic</h2>
+        <img src="${schematic_drone_task_url}" alt="Training drone schematic" width="600">
+
+        <p>Good work agent. You are ready to learn more about the strange drones we are encountering in the 
+          field. Above is a schematic that summarizes the possible components and where they are placed on the 
+          drone fuselage. Each drone is defined by its components. Your job will be to determine which combinations 
+          represent ${drone_types[0].toLocaleLowerCase()} drones versus ${drone_types[1].toLocaleLowerCase()} drones.</p>
+        <p>
+          <p>Press any key to continue.</p>
+        `;
+      var instructions_briefing_3_text = `
+        <h1>Entering the Field</h1>
+        <p>Good work on your training! It is time to enter the field. You will both report the type of drone, and your judgement in your
+          categorization. Remember, decision-makers will weigh your categorization by your confidence, 
+          so both matter. Furthermore, the final evaluation is based on your performance here.</p>
+          <p>Press any key to continue.</p>
+        `;
+    } else {
+      var welcome_message = "Welcome back to Drone Recon! Press any key to begin.";
+      var introduction_message = `
+        <h1>Welcome Back Agent</h1>
+
+        <p> The agency still needs you.</p>
+
+        <p>As a reminder, you are an analyst with the intelligence agency. Your mission is to provide assessments of unknown
+          drones. Specifically, the agency needs to know if a drones is ${drone_types[0].toLocaleLowerCase()}, 
+          or ${drone_types[1].toLocaleLowerCase()}. Additionally, the agency needs to know how confident you 
+          are in your assessment. Consequential decisions will be made based both on your categorization of the 
+          drone and how confident you are in your judgement. <b>These are different drones than you encountered last time.</b></p>
+
+          <p>The final evaluation you receive will be an average of how well you did categorizing the drones, 
+          and how accurately you judged your own categorization. For example, if you are 100% correct, and your 
+          judgement calibration score is 100, your final evaluation will be 100. If you are 50 correct, and your
+          judgement calibration score is 20, your final evaluation will be 35. Thus, to perform well, try as hard 
+          as you can both to categorize the drone correctly, and honestly judge your categorization.</p>
+
+        <p>Before we get into the briefing and field work, you will have a refresher of what will be required.</p>
+
+        <p>Press any key to continue.</p>
+        `;
+      var instructions_briefing_1_text = `
+        <h1>Mission Briefing</h1>
+        <h2>Drone Schematic</h2>
+        <img src="${schematic_drone_task_url}" alt="Training drone schematic" width="600">
+
+        <p>Good work agent. As a reminder is a schematic that summarizes the possible components and where they are placed on the 
+          drone fuselage. Each drone is defined by its components. <b>The configuration of components is different in the new drones.</b>
+          As before, your job will be to determine which combinations 
+          represent ${drone_types[0].toLocaleLowerCase()} drones versus ${drone_types[1].toLocaleLowerCase()} drones.</p>
+        <p>
+          <p>Press any key to continue.</p>
+        `;
+      var instructions_briefing_3_text = `
+        <h1>Entering the Field</h1>
+        <p>Good work on your training! It is time to enter the field <b>where you will encounter different drones than 
+          you encountered last time</b>. You will both report the type of drone, and your judgement in your
+          categorization. Remember, decision-makers will weigh your categorization by your confidence, 
+          so both matter. Furthermore, the final evaluation is based on your performance here.</p>
+          <p>Press any key to continue.</p>
+        `;
+    }
+
+    /* preload images */
+    var image_urls = [];
+    var all_stims = tutorial_train_stimuli.concat(tutorial_test_stimuli).concat(train_stimuli).concat(test_stimuli);
+    for (let i=0; i<all_stims.length; i++){
+      image_urls.push(all_stims[i].stimulus);
+    }
+    var preload = {
+        type: jsPsychPreload,
+        images: image_urls
+      };
+    timeline.push(preload);
+
+    /* define welcome message trial */
+    var welcome = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: welcome_message,
+    };
+    timeline.push(welcome);
+
+    /* add instructions */
+    var instructions_opening = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: introduction_message,
+        // post_trial_gap: 2000
+    };
+
+    // TUTORIAL
+    var instructions_tutorial_1 = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: 'img/schematic_drone_training.png',
+        stimulus: `
+        <h1>Agent Training</h1>
+        <h2>Training Drone Schematic</h2>
+        <img src="${schematic_drone_tutorial_url}" alt="Training drone schematic" width="600">
+
+        <p>You will now need to categorize the training drones as coming from the ${tutorial_types[0]} (press "${tutorial_types_keys[0]}"), 
+          or ${tutorial_types[1]} (press "${tutorial_types_keys[1]}"). First, you will learn the types through feedback. Then, you will need to 
+          report your confidence in your decisions. While learning, pay very close attention to the drone features</p>
+          <p>Press any key to continue.</p>
+        `,
+        // post_trial_gap: 2000
+    };
+
+        // TUTORIAL
+    var instructions_tutorial_2 = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: `
+        <p>Now, instead of getting feedback on whether you are right or wrong, you will report the degree of 
+          confidence you have in your judgement.</p>
+          <p>Press any key to continue.</p>
+        `,
+        // post_trial_gap: 2000
+    };
+    
+    /* define debrief */
+    var debrief_tutorial = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: function() {
+      var message = blockFeedbackMessage('tutorial_test');
+      return message;
+      }
+    };
+
+    // CATEGORY FORMATION
+    var instructions_briefing_1 = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: instructions_briefing_1_text,
+        // post_trial_gap: 2000
+    };
+    
+
+    // CATEGORY FORMATION
+    var instructions_briefing_2 = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: `
+        <h1>Mission Briefing</h1>
+        <p>Before you enter the field, you will train on the types of drones you will likely encounter.
+          Other agents made great sacrifices to document them, so study carefully. If they are ${drone_types[0]}, press 
+          "${drone_types_keys[0]}." If they are ${drone_types[1]}, press "${drone_types_keys[1]}." After you provide 
+          a response, you will receive feedback based on our existing intelligence.</p>
+          <p>Press any key to continue.</p>
+        `,
+        // post_trial_gap: 2000
+    };
+    
+
+    /* add instructions */
+    var instructions_briefing_3 = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: instructions_briefing_3_text,
+        // post_trial_gap: 2000
+    };
+
+    var goodbye = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: `
+        <p>Thank you for participating in the beta version! Please email comments to warren.pettine@yale.edu.</p>
+        <p>Press any key to continue the payment code page. It may take a moment to load.</p>
+        `,
+        // post_trial_gap: 2000
+    };
+
+
+    /* Tell jsPsych to substitute the value of the timeline variable */
+    var classification = {
+        type: jsPsychImageKeyboardResponse,
+        stimulus: jsPsych.timelineVariable('stimulus'),
+        prompt: function(){
+          if (jsPsych.timelineVariable('block').includes('tutorial')){
+              return `<p>Is this a ${tutorial_types[0]} (press ${tutorial_types_keys[0]}) or ${tutorial_types[1]} (press ${tutorial_types_keys[1]}) drone?</p>`;
+          } else {
+              return `<p>Is this a ${drone_types[0]} (press ${drone_types_keys[0]}) or ${drone_types[1]} (press ${drone_types_keys[1]}) drone?</p>`;
+          }
+          },
+        choices: function () {
+          if (jsPsych.timelineVariable('block').includes('tutorial')){
+            return tutorial_types_keys;
+          } else {
+            return drone_types_keys;
+          }
+        },
+        data: {
+            task: 'classification',
+            correct_response: jsPsych.timelineVariable('correct_response'),
+            drone_type: jsPsych.timelineVariable('drone_type'),
+            block: jsPsych.timelineVariable('block'),
+            trial_index_aligned: () =>  {return trial_index_aligned},
+        },
+        on_finish: function(data){
+            data.correct = jsPsych.pluginAPI.compareKeys(data.response, data.correct_response);
+            if (jsPsych.timelineVariable('block').includes('tutorial')){
+              data.type_selected = tutorial_types[tutorial_types_keys.findIndex(element => element == data.response)];
+            } else {
+              data.type_selected = drone_types[drone_types_keys.findIndex(element => element == data.response)];
+            }
+
+            {% comment %} /* Check if fullscreen */
+            var isInFullScreen = (document.fullscreenElement && document.fullscreenElement !== null) ||
+              (document.webkitFullscreenElement && document.webkitFullscreenElement !== null) ||
+              (document.mozFullScreenElement && document.mozFullScreenElement !== null) ||
+              (document.msFullscreenElement && document.msFullscreenElement !== null);
+        
+            if (!isInFullScreen) {
+              jsPsych.endCurrentTimeline();
+            } {% endcomment %}
+        }
+    };
+
+    /* Create feedback trial */
+    var feedback = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: function (){
+        var stimulus = jsPsych.data.get().filter({task: 'classification'}).last(1).trials[0].stimulus;
+        var outcome = jsPsych.data.get().filter({task: 'classification'}).last(1).trials[0].correct;
+        var type_selected = jsPsych.data.get().filter({task: 'classification'}).last(1).trials[0].type_selected;
+        var key_selected = jsPsych.data.get().filter({task: 'classification'}).last(1).trials[0].response;
+        if (outcome){
+          var feedback_image = reward_url;
+        } else {
+          var feedback_image = noreward_url;
+        }
+        feedback_message = `
+          <img src="${feedback_image}" alt="Feedback Image" width="100">
+          <br><br>
+          <img src="${stimulus}" alt="Trial Stimulus" width="200">`
+        if (outcome) {
+          
+          feedback_message += '<p>You were <span style="color:green;">CORRECT</span> classifying that drone as ' + 
+            type_selected + ' (pressing "' + key_selected + '")</p>';
+        } else {
+          feedback_message += '<p>You were <span style="color:red;">INCORRECT</span> classifying that drone as ' + 
+            type_selected + ' (pressing "' + key_selected + '")</p>';
+        }
+        feedback_message += '<p>Either wait, or press any key to continue.</p>';
+        return feedback_message
+      },
+      data: {
+        task: 'feedback',
+        block: jsPsych.timelineVariable('block'),
+      },
+      // choices: "NO_KEYS",
+      trial_duration: function(){
+          return feedback_trial_duration
+      },
+      on_finish: function(data){
+        trial_index_aligned += 1;
+      }
+    }
+
+    var confidence = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: function(){
+        let type_selected = jsPsych.data.get().filter({task: 'classification'}).last(1).trials[0].type_selected;
+        let confidence_message = '<p>How confident are you that drone is a ' + type_selected + '?<br>';
+        for (let i = 0; i < confidence_labels.length; i++) {
+          confidence_message += confidence_labels[i] + " (press " + confidence_keys[i] + ")<br>";
+        }
+        confidence_message += '</p>';
+        return confidence_message;
+      },
+      choices: function(){
+        return confidence_keys;
+      },
+      data: function(){
+        return {
+          task: 'confidence',
+          block: jsPsych.timelineVariable('block'),
+          drone_type: jsPsych.timelineVariable('drone_type'),
+          correct_response: jsPsych.timelineVariable('correct_response'),
+          type_selected: jsPsych.data.get().filter({task: 'classification'}).last(1).trials[0].type_selected,
+          type_response: jsPsych.data.get().filter({task: 'classification'}).last(1).trials[0].response,
+          stimulus: jsPsych.data.get().filter({task: 'classification'}).last(1).trials[0].stimulus,
+          trial_index_aligned: trial_index_aligned
+        };
+      },
+      on_finish: function(data){
+          data.responses = data.response;
+          trial_index_aligned += 1;
+      }
+    }
+
+    /* define test procedure */
+    var tutorial_train_procedure = {
+      timeline: [classification,feedback],
+      timeline_variables: tutorial_train_stimuli,
+      randomize_order: true,
+      repetitions: 1
+    };
+    
+
+    /* define test procedure */
+    var tutorial_test_procedure = {
+      timeline: [classification,confidence],
+      timeline_variables: tutorial_test_stimuli,
+      randomize_order: true,
+      repetitions: 1
+    };
+
+    /* define test procedure */
+    var train_procedure = {
+      timeline: [classification,feedback],
+      timeline_variables: train_stimuli,
+      randomize_order: true,
+      repetitions: 1
+    };
+    
+    /* define test procedure */
+    var test_procedure = {
+      timeline: [classification,confidence],
+      timeline_variables: test_stimuli,
+      randomize_order: true,
+      repetitions: 1
+    };
+  
+    /* define debrief */
+    var debrief_block = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: function() {
+      var message = blockFeedbackMessage('test');
+      return message;
+      }
+    };
+
+    /* written report of the stragegy */
+    var strategy_free = {
+      type: jsPsychSurveyText,
+      css_classes: ['strategy_free_box'], 
+      questions: [
+        {prompt: 'Please describe the approach you used to classify the drones. The more detail the better.'}
+      ],
+      data: {task: 'strategy_free'}
+    }
+
+    /* radio button of strategy */
+    var strategy_radio = {
+
+      type: jsPsychSurveyMultiChoice,
+      promp: "Please answer the following questions regarding that final exercise. Your responses will have no impact on our evaluation.",
+      questions: [
+        {
+          prompt: "Which of the following best describes your strategy?", 
+          name: 'strategy_classification', 
+          options: ['I DID NOT HAVE a strategy',
+          'I paid attention to a ALL COMPONENTS',
+          'I paid attention to a SUBSET OF COMPONENTS and ignored the others',
+          'I WROTE DOWN the components and classifications'], 
+          required: true
+        }, 
+        {
+          prompt: "Which of the following best describes your decision process on most trials?", 
+          name: 'decision_process', 
+          options: ['I CAREFULLY EVALUATED the options',
+          'I trusted MY GUT', 'I chose RANDOMLY'], 
+          required: true
+        }, 
+        {
+          prompt: "Did you try throughout the entire exercise?", 
+          name: 'effort', 
+          options: ['I tried the ENTIRE TIME',
+          'I GAVE UP towards the end'], 
+          required: true
+        }, 
+      ],
+      data: {
+        task: 'strategy_radio'
+      }
+    };
+
+    /* Construct the timeline */
+    {% comment %} timeline.push(enter_fullscreen); {% endcomment %}
+    if (require_fullscreen) {
+      timeline.push(fullscreen);
+    }
+    timeline.push(instructions_opening);
+    timeline.push(instructions_tutorial_1);
+    timeline.push(tutorial_train_procedure);
+    timeline.push(instructions_tutorial_2);
+    timeline.push(tutorial_test_procedure);
+    timeline.push(debrief_tutorial);
+    timeline.push(instructions_briefing_1);
+    timeline.push(instructions_briefing_2);
+    timeline.push(train_procedure);
+    timeline.push(instructions_briefing_3);
+    timeline.push(test_procedure);
+    timeline.push(debrief_block);
+    timeline.push(strategy_free);
+    timeline.push(strategy_radio);
+    timeline.push(goodbye);
+    if (require_fullscreen) {
+      timeline.push(fullscreen_exit);
+    }
+    /* start the experiment */
+    jsPsych.run(timeline);
+    
+    
+  </script>
+</html>
